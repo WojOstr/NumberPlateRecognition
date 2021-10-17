@@ -127,3 +127,14 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+tfod/
+tfod/Scripts/activate
+tfod/Scripts/activate.bat
+tfod/Scripts/easy_install-3.8.exe
+tfod/Scripts/easy_install.exe
+tfod/Scripts/f2py.exe
+tfod/Scripts/pip.exe
+tfod/Scripts/pip3.8.exe
+tfod/Scripts/pip3.exe
+
+tfod/Scripts/activate
