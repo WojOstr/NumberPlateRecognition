@@ -1,7 +1,6 @@
 import cv2
 import uuid
 import os
-import time
 
 labels = ['bigplate', 'smallplate']
 IMAGES_PATH = os.path.join('Tensorflow', 'workspace', 'images', 'collectedimages')
@@ -17,6 +16,5 @@ for label in labels:
         print(image)
         if image is not None:
             imgname = os.path.join(".\\"+IMAGES_PATH,label,label+'.'+'{}.jpg'.format(str(uuid.uuid1())))
-            print(imgname)
             cv2.imwrite(imgname, image)
 
