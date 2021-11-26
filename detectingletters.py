@@ -5,10 +5,10 @@ from object_detection.utils import config_util
 from object_detection.utils import label_map_util
 from object_detection.builders import model_builder
 from object_detection.utils import visualization_utils as viz_utils
-from rotateimgscript import rotate
 from deskew import determine_skew
 import cv2
 import string
+import math
 
 ALLOWED_LIST = string.ascii_uppercase+string.digits
 
@@ -87,98 +87,55 @@ def filter_text(region, ocr_result):
             plate.append(result[1])
     return plate
 
-
 def ocr_it(image, detections, detection_threshold):
     
-    # Scores, boxes and classes above threhold
-    scores = list(filter(lambda x: x> detection_threshold, detections['detection_scores']))
-    boxes = detections['detection_boxes'][:len(scores)]
-    
-    # Full image dimensions
-    width = image.shape[1]
-    height = image.shape[0]
-    region = []
-    text = []
-    
-    # Apply ROI filtering and OCR
-    for idx, box in enumerate(boxes):
-        roi = box*[height, width, height, width]
-        region.append(image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])])
-        reader = easyocr.Reader(['pl'])
-        ocr_result = reader.readtext(region[idx], decoder = 'beamsearch', beamWidth = 10, allowlist=ALLOWED_LIST, min_size = 10, width_ths = 1.5)
-        print(ocr_result)
-        text.append(filter_text(region[idx], ocr_result))
-        
-    return text, region
-"""
-def ocr_it(image, detections, detection_threshold, region_threshold):
-    
-    # Scores, boxes and classes above threhold
     scores = list(filter(lambda x: x> detection_threshold, detections['detection_scores']))
     boxes = detections['detection_boxes'][:len(scores)]
     classes = detections['detection_classes'][:len(scores)]
     
-    # Full image dimensions
     width = image.shape[1]
     height = image.shape[0]
-    
-    # Apply ROI filtering and OCR
+    region = []
+    text = []
+
     for idx, box in enumerate(boxes):
         roi = box*[height, width, height, width]
-
-        region = image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
+        temp_region = image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
         reader = easyocr.Reader(['pl'])
     
-        ocr_result = reader.readtext(region)
+        ocr_result = reader.readtext(temp_region, decoder = 'beamsearch', beamWidth = 10, allowlist=ALLOWED_LIST, min_size = 10, width_ths = 1.5)
+        grayscale = cv2.cvtColor(temp_region, cv2.COLOR_BGR2GRAY)
+        angle = determine_skew(grayscale)
 
-        text = filter_text(region, ocr_result)
-        if len(text) > 1:
-            strlist = ''.join([str(elem) for elem in text])
-            if strlist.isalnum():
-                text = list(strlist)
-            else:
-                grayscale = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
-                angle = determine_skew(grayscale)
-                if angle:
-                    rotated_image = rotate(image, angle, (0,0,0))
-                    roi = box * calculate_new_roi(roi, angle, image)
-                    region = rotated_image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
-                    ocr_result = reader.readtext(region)
-                    text = filter_text(region, ocr_result)
+        if angle:
+            center = (width/2, height/2)
+            rotate_matrix = cv2.getRotationMatrix2D(center, angle, 1)
+            rotated_image = cv2.warpAffine(src=image, M=rotate_matrix, dsize=(width, height))
+            roi = calculate_new_roi(roi, angle, image, rotated_image)
+            temp_region = rotated_image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
+            ocr_result = reader.readtext(temp_region, decoder = 'beamsearch', beamWidth = 10, allowlist=ALLOWED_LIST, min_size = 10, width_ths = 1.5)
 
-        elif text[0].isalnum() == False:
-            grayscale = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY)
-            angle = determine_skew(grayscale)
-            if angle:
-                rotated_image = rotate(image, angle, (0,0,0))
-                roi = box * calculate_new_roi(roi, angle, image)
-
-                region = rotated_image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
-                ocr_result = reader.readtext(region)
-                text = filter_text(region, ocr_result)
-
-        ## SPRAWDZIĆ CZY MA BIAŁE ZNAKI
-        ## ISALPHANUM
-        ## SPŁASZCZYĆ W JEDNOŚĆ
-
-        return text, region
+        region.append(temp_region)
+        text.append(filter_text(region[idx], ocr_result))
+    
+    return text, region
 
 
-def calculate_new_roi(roi, angle, image):
+def calculate_new_roi(roi, angle, image, rotated_image):
     width = image.shape[1]
     height = image.shape[0]
-    angle = math.radians(angle)
+    rotated_width = rotated_image.shape[1]
+    rotated_height = rotated_image.shape[0]
+
+    angle = math.radians(angle) * (-1)
     y1,x1,y2,x2 = roi[0],roi[1],roi[2],roi[3]
-    print(width, height)
 
-    x1_new = (x1-width/2) * math.cos(angle) - (y1 - height/2)* math.sin(angle) + width
-    y1_new = (x1-width/2) * math.sin(angle) + (y1 - height/2) * math.cos(angle) + height
+    x1_new = (x1-width/2) * math.cos(angle) - (y1 - height/2) * math.sin(angle) + rotated_width / 2
+    y1_new = (x1-width/2) * math.sin(angle) + (y1 - height/2) * math.cos(angle) + rotated_height /  2
 
-    x2_new = (x2-width/2) * math.cos(angle) - (y2 - height/2)* math.sin(angle) + width
-    y2_new = (x2-width/2) * math.sin(angle) + (y2 - height/2) * math.cos(angle) + height
+    x2_new = (x2-width/2) * math.cos(angle) - (y2 - height/2) * math.sin(angle) + rotated_width / 2
+    y2_new = (x2-width/2) * math.sin(angle) + (y2 - height/2) * math.cos(angle) + rotated_height / 2
 
     coordinates = [math.fabs(y1_new), math.fabs(x1_new), math.fabs(y2_new), math.fabs(x2_new)]
 
-    print(coordinates)
     return coordinates
-    """

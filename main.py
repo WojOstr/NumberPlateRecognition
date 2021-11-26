@@ -26,6 +26,8 @@ def load_source():
         else:
             sourceFile = cv2.imread(filepath, cv2.COLOR_BGRA2BGR)
             return sourceFile, None
+    return None, None
+
 def export_results(detection_array):
     for row in detection_array:
         filename = ''.join(str(e) for e in row[0])
@@ -66,7 +68,7 @@ def main():
                                 temp_text = ''
                                 for txt in reversed(text[i]):
                                     temp_text += txt
-                                if len(temp_text) >= 5:
+                                if len(temp_text) >= 4:
                                     if any(temp_text in sl for sl in detection_array):
                                         pass
                                     else:
@@ -78,7 +80,6 @@ def main():
             if ret == True:        
 
                 sourceDetected, detections = detectingletters.detecting(fr, model)
-                print(detections['detection_scores'])
                 if any(detections['detection_scores'] > 0.3):
                     text, region = detectingletters.ocr_it(fr, detections, 0.3)
                     for i in range(0, len(region)):
@@ -86,7 +87,7 @@ def main():
                             temp_text = ''
                             for txt in reversed(text[i]):
                                 temp_text += txt
-                            if len(temp_text) >= 5:
+                            if len(temp_text) >= 4:
                                 if any(temp_text in sl for sl in detection_array):
                                     pass
                                 else:
