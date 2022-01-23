@@ -15,6 +15,10 @@ import numpy as np
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import glob
+from PIL import Image
+from object_detection.utils import ops as utils_ops
+import io
 
 
 CUSTOM_MODEL_NAME = "my_mobilenet_model_v2"
@@ -48,7 +52,7 @@ files = {
 
 labels = [{'name':'licence', 'id':1}]
 
-### Download Model and unzip in location
+### Pobranie modelu i wypakowanie
 """
 wget.download(PRETRAINED_MODEL_URL)
 
@@ -56,7 +60,7 @@ move {PRETRAINED_MODEL_NAME+'.tar.gz'} {paths['PRETRAINED_MODEL_PATH']}
 cd {paths['PRETRAINED_MODEL_PATH']} && tar -zxvf {PRETRAINED_MODEL_NAME+'.tar.gz'}
 """
 
-#  Create Label Map
+#  Utworzenie mapy etykiet
 """
 with open(files['LABELMAP'], 'w+') as f:
     for label in labels:
@@ -66,21 +70,13 @@ with open(files['LABELMAP'], 'w+') as f:
         f.write('}\n')
 """
 
-# TFRecords 
+# Utworzenie TFrecord
 """
-print(files['TF_RECORD_SCRIPT'], os.path.join(paths['IMAGE_PATH'], 'train'), files['LABELMAP'], os.path.join(paths['ANNOTATION_PATH'], 'train.record'))
-print(files['TF_RECORD_SCRIPT'], os.path.join(paths['IMAGE_PATH'], 'test'), files['LABELMAP'], os.path.join(paths['ANNOTATION_PATH'], 'test.record'))
-
-# python Tensorflow\scripts\generate_tfrecord.py -x Tensorflow\workspace\images\test -l Tensorflow\workspace\annotations\label_map.pbtxt -o Tensorflow\workspace\annotations\test.record
-# python Tensorflow\scripts\generate_tfrecord.py -x Tensorflow\workspace\images\train -l Tensorflow\workspace\annotations\label_map.pbtxt -o Tensorflow\workspace\annotations\train.record
+python Tensorflow\scripts\generate_tfrecord.py -x Tensorflow\workspace\images\test -l Tensorflow\workspace\annotations\label_map.pbtxt -o Tensorflow\workspace\annotations\test.record
+python Tensorflow\scripts\generate_tfrecord.py -x Tensorflow\workspace\images\train -l Tensorflow\workspace\annotations\label_map.pbtxt -o Tensorflow\workspace\annotations\train.record
 """
 
-#Copy model cfg
-"""
-{os.path.join(paths['PRETRAINED_MODEL_PATH'], PRETRAINED_MODEL_NAME, 'pipeline.config')} {os.path.join(paths['CHECKPOINT_PATH'])}
-"""
-
-# Konfiguracja cfg
+# Konfiguracja pliku konfiguracyjnego
 """
 config = config_util.get_configs_from_pipeline_file(files['PIPELINE_CONFIG'])
 pipeline_config = pipeline_pb2.TrainEvalPipelineConfig()
@@ -89,7 +85,7 @@ with tf.io.gfile.GFile(files['PIPELINE_CONFIG'], "r") as f:
     text_format.Merge(proto_str, pipeline_config)
 
 pipeline_config.model.ssd.num_classes = len(labels)
-pipeline_config.train_config.batch_size = 4
+pipeline_config.train_config.batch_size = 8
 pipeline_config.train_config.fine_tune_checkpoint = os.path.join(paths['PRETRAINED_MODEL_PATH'], PRETRAINED_MODEL_NAME, 'checkpoint', 'ckpt-0')
 pipeline_config.train_config.fine_tune_checkpoint_type = "detection"
 pipeline_config.train_input_reader.label_map_path= files['LABELMAP']
@@ -102,86 +98,11 @@ with tf.io.gfile.GFile(files['PIPELINE_CONFIG'], "wb") as f:
     f.write(config_text)
 """
 
-# trenowanie 0.0046
+# trenowanie 
 
 #os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 """
-TRAINING_SCRIPT = os.path.join(paths['APIMODEL_PATH'], 'research', 'object_detection', 'model_main_tf2.py')
-command = "python {} --model_dir={} --pipeline_config_path={} --checkpoint_dir={}".format(TRAINING_SCRIPT, paths['CHECKPOINT_PATH'],files['PIPELINE_CONFIG'], paths['CHECKPOINT_PATH'])
-
-command2 = "python {} --model_dir={} --pipeline_config_path={} --num_train_steps=4000".format(TRAINING_SCRIPT, paths['CHECKPOINT_PATH'],files['PIPELINE_CONFIG'])
-print(command) 
-print(command2)
-
-  
 #python Tensorflow\models\research\object_detection\model_main_tf2.py --model_dir=Tensorflow\workspace\models\my_mobilenet_model_v2 --pipeline_config_path=Tensorflow\workspace\models\my_mobilenet_model_v2\pipeline.config --num_train_steps=10000
 #python Tensorflow\models\research\object_detection\model_main_tf2.py --model_dir=Tensorflow\workspace\models\my_mobilenet_model_v2 --pipeline_config_path=Tensorflow\workspace\models\my_mobilenet_model_v2\pipeline.config --checkpoint_dir=Tensorflow\workspace\models\my_mobilenet_model_v2
 """
 
-#load model
-
-# Prevent GPU complete consumption
-"""
-gpus = tf.config.list_physical_devices('GPU');
-
-
-
-if gpus:
-    try: 
-
-        tf.config.experimental.set_virtual_device_configuration(
-            gpus[0], [tf.config.experimental.VirtualDeviceConfiguration(memory_limit=2060)])
-    except RunTimeError as e:
-        print(e)
-
-# Load pipeline config and build a detection model
-configs = config_util.get_configs_from_pipeline_file(Tensorflow\workspace\models\my_mobilenet_model_v2\pipeline.config)
-detection_model = model_builder.build(model_config=configs['model'], is_training=False)
-
-# Restore checkpoint
-ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
-ckpt.restore(Tensorflow\workspace\models\my_mobilenet_model_v2\ckpt-11).expect_partial()
-
-@tf.function
-def detect_fn(image):
-    
-    image, shapes = detection_model.preprocess(image)
-    prediction_dict = detection_model.predict(image, shapes)
-    detections = detection_model.postprocess(prediction_dict, shapes)
-    return detections
-category_index = label_map_util.create_category_index_from_labelmap(Tensorflow\workspace\annotations\label_map.pbtxt)
-
-IMAGE_PATH = os.path.join(paths['IMAGE_PATH'], 'tab3.png')
-
-img = cv2.imread(IMAGE_PATH)
-image_np = np.array(img)
-
-input_tensor = tf.convert_to_tensor(np.expand_dims(image_np, 0), dtype=tf.float32)
-detections = detect_fn(input_tensor)
-print(detections)
-
-num_detections = int(detections.pop('num_detections'))
-detections = {key: value[0, :num_detections].numpy()
-              for key, value in detections.items()}
-detections['num_detections'] = num_detections
-
-# detection_classes should be ints.
-detections['detection_classes'] = detections['detection_classes'].astype(np.int64)
-
-label_id_offset = 1
-image_np_with_detections = image_np.copy()
-
-image2 = viz_utils.visualize_boxes_and_labels_on_image_array(
-            image_np_with_detections,
-            detections['detection_boxes'],
-            detections['detection_classes']+label_id_offset,
-            detections['detection_scores'],
-            category_index,
-            use_normalized_coordinates=True,
-            max_boxes_to_draw=5,
-            min_score_thresh=.8,
-            agnostic_mode=False)
-
-plt.imshow(cv2.cvtColor(image2, cv2.COLOR_BGR2RGB))
-plt.show()
-"""

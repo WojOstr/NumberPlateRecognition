@@ -13,8 +13,7 @@ import math
 ALLOWED_LIST = string.ascii_uppercase+string.digits
 
 def load_model():
-    gpus = tf.config.list_physical_devices('GPU');
-
+    gpus = tf.config.list_physical_devices('GPU')
     if gpus:
         try: 
 
@@ -23,20 +22,16 @@ def load_model():
         except RunTimeError as e:
             print(e)
 
-    # Load pipeline config and build a detection model
-    configs = config_util.get_configs_from_pipeline_file(r"Tensorflow\workspace\models\my_mobilenet_model_v2\pipeline.config")
+    configs = config_util.get_configs_from_pipeline_file(r"Tensorflow\workspace\models\my_mobilenet_model_v2\export\pipeline.config")
     detection_model = model_builder.build(model_config=configs['model'], is_training=False)
 
-    # Restore checkpoint
     ckpt = tf.compat.v2.train.Checkpoint(model=detection_model)
-    ckpt.restore(r"Tensorflow\workspace\models\my_mobilenet_model_v2\ckpt-11").expect_partial()
-
+    ckpt.restore(r"Tensorflow\workspace\models\my_mobilenet_model_v2\export\checkpoint\ckpt-0").expect_partial()
     return detection_model
 
 
 @tf.function(experimental_relax_shapes=True)
 def detect_fn(image, detection_model):
-    
     image, shapes = detection_model.preprocess(image)
     prediction_dict = detection_model.predict(image, shapes)
     detections = detection_model.postprocess(prediction_dict, shapes)
@@ -48,6 +43,7 @@ def detecting(sourceImage, detection_model):
     image_np = np.array(sourceImage)
 
     input_tensor = tf.convert_to_tensor(np.expand_dims(image_np, 0), dtype=tf.float32)
+    
     detections = detect_fn(input_tensor, detection_model)
 
     num_detections = int(detections.pop('num_detections'))
@@ -55,7 +51,6 @@ def detecting(sourceImage, detection_model):
                 for key, value in detections.items()}
     detections['num_detections'] = num_detections
 
-    # detection_classes should be ints.
     detections['detection_classes'] = detections['detection_classes'].astype(np.int64)
 
     label_id_offset = 1
@@ -69,7 +64,7 @@ def detecting(sourceImage, detection_model):
         category_index,
         use_normalized_coordinates=True,
         max_boxes_to_draw=5,
-        min_score_thresh=.7,
+        min_score_thresh=.6,
         agnostic_mode=False)
     return image_np_with_detections, detections
 
@@ -88,10 +83,8 @@ def filter_text(region, ocr_result):
     return plate
 
 def ocr_it(image, detections, detection_threshold):
-    
     scores = list(filter(lambda x: x> detection_threshold, detections['detection_scores']))
     boxes = detections['detection_boxes'][:len(scores)]
-    classes = detections['detection_classes'][:len(scores)]
     
     width = image.shape[1]
     height = image.shape[0]
@@ -102,17 +95,17 @@ def ocr_it(image, detections, detection_threshold):
         roi = box*[height, width, height, width]
         temp_region = image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
         reader = easyocr.Reader(['pl'])
-    
+
         ocr_result = reader.readtext(temp_region, decoder = 'beamsearch', beamWidth = 10, allowlist=ALLOWED_LIST, min_size = 10, width_ths = 1.5)
+        
         grayscale = cv2.cvtColor(temp_region, cv2.COLOR_BGR2GRAY)
         angle = determine_skew(grayscale)
-
-        if angle:
+        if angle and (angle > 10 or angle < -10):
             center = (width/2, height/2)
             rotate_matrix = cv2.getRotationMatrix2D(center, angle, 1)
             rotated_image = cv2.warpAffine(src=image, M=rotate_matrix, dsize=(width, height))
             roi = calculate_new_roi(roi, angle, image, rotated_image)
-            temp_region = rotated_image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
+            temp_region = rotated_image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])])
             ocr_result = reader.readtext(temp_region, decoder = 'beamsearch', beamWidth = 10, allowlist=ALLOWED_LIST, min_size = 10, width_ths = 1.5)
 
         region.append(temp_region)

@@ -35,11 +35,10 @@ def export_results(detection_array):
         cv2.imwrite(".\\Results\\{}.png".format(filename), img)
 
 def main():
-    model = detectingletters.load_model()
     frame = np.zeros((710, 1047, 3), np.uint8)
+    model = detectingletters.load_model()
     detection_array = []
     last_array_len = 0
-    sourceDetected = None
     sourceBackground = None
     isVideoFormat = False
     count = 0
@@ -51,8 +50,7 @@ def main():
 
         cvui.window(frame, 5, 5, 192, 65, 'Options')
         
-
-        if cvui.button(frame, 10, 35, 'Open'):
+        if cvui.button(frame, 20, 35, 'Open'):
             if isVideoFormat:
                 sourceBackground.release()
             count = 0
@@ -60,8 +58,8 @@ def main():
             if sourceBackground is not None:
                 if isVideoFormat is None:
                     fr = sourceBackground.copy()
-                    sourceDetected, detections = detectingletters.detecting(sourceBackground, model)
-                    if any(detections['detection_scores'] > 0.6):
+                    _ , detections = detectingletters.detecting(sourceBackground, model)
+                    if any(detections['detection_scores'] > 0.8):
                         text, region = detectingletters.ocr_it(sourceBackground, detections, 0.6)
                         for i in range(0, len(region)):
                             if bool(text[i]):
@@ -73,13 +71,11 @@ def main():
                                         pass
                                     else:
                                         detection_array.append([temp_text, region[i]])
-                    #obsługa?
-
         if isVideoFormat:
             ret, fr = sourceBackground.read()
             if ret == True:        
 
-                sourceDetected, detections = detectingletters.detecting(fr, model)
+                _ , detections = detectingletters.detecting(fr, model)
                 if any(detections['detection_scores'] > 0.3):
                     text, region = detectingletters.ocr_it(fr, detections, 0.3)
                     for i in range(0, len(region)):
@@ -92,14 +88,14 @@ def main():
                                     pass
                                 else:
                                     detection_array.append([temp_text, region[i]])
-                count += 2 # i.e. at 30 fps, this advances one second
+                count += 2 
                 sourceBackground.set(cv2.CAP_PROP_POS_FRAMES, count)
             else:
                 fr = np.zeros((670, 825, 3), np.uint8)
                 fr[:] = (49, 52, 49)
                 sourceBackground.release()
         
-        if cvui.button(frame, 80, 35, 'Export'):
+        if cvui.button(frame, 110, 35, 'Export'):
             export_results(detection_array)
             
         cvui.window(frame, 5, 75, 192, 630, 'Detected Numbers')
