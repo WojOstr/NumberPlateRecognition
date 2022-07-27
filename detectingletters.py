@@ -105,7 +105,7 @@ def ocr_it(image, detections, detection_threshold):
             rotate_matrix = cv2.getRotationMatrix2D(center, angle, 1)
             rotated_image = cv2.warpAffine(src=image, M=rotate_matrix, dsize=(width, height))
             roi = calculate_new_roi(roi, angle, image, rotated_image)
-            temp_region = rotated_image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])])
+            temp_region = rotated_image[int(roi[0]):int(roi[2]),int(roi[1]):int(roi[3])]
             ocr_result = reader.readtext(temp_region, decoder = 'beamsearch', beamWidth = 10, allowlist=ALLOWED_LIST, min_size = 10, width_ths = 1.5)
 
         region.append(temp_region)
